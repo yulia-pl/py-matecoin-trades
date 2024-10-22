@@ -1,30 +1,44 @@
 import json
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+from typing import Optional
 
 
-def calculate_profit(filename: str) -> None:
-    with open(filename, "r") as file:
-        trades = json.load(file)
+def calculate_profit(file_name: str) -> Optional[None]:
+    try:
+        with open(file_name, "r") as f:
+            trades = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
 
-    total_matecoin = Decimal("0.0")
-    total_money = Decimal("0.0")
+    total_earned = Decimal("0")
+    matecoin_balance = Decimal("0")
 
     for trade in trades:
-        if trade["bought"] is not None:
-            bought = Decimal(trade["bought"])
-            price = Decimal(trade["matecoin_price"])
-            total_matecoin += bought
-            total_money -= bought * price
-        elif trade["sold"] is not None:
-            sold = Decimal(trade["sold"])
-            price = Decimal(trade["matecoin_price"])
-            total_matecoin -= sold
-            total_money += sold * price
+        try:
+            bought = Decimal(trade.get("bought") or "0")
+            sold = Decimal(trade.get("sold") or "0")
+            price = Decimal(trade["matecoin_price"]) \
+                if (trade.get("matecoin_price")
+                    is not None) else Decimal("0")
+
+            if bought > 0:
+                total_earned -= bought * price
+                matecoin_balance += bought
+            if sold > 0:
+                total_earned += sold * price
+                matecoin_balance -= sold
+        except (InvalidOperation, KeyError):
+            return None
 
     result = {
-        "earned_money": str(total_money),
-        "matecoin_account": str(total_matecoin),
+        "earned_money": str(total_earned),
+        "matecoin_account": str(matecoin_balance)
     }
 
-    with open("profit.json", "w") as file:
-        json.dump(result, file, indent=2)
+    try:
+        with open("profit.json", "w") as f:
+            json.dump(result, f, indent=2)
+    except IOError:
+        return None
+
+    return None
